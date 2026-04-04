@@ -17,3 +17,9 @@ def plot_equity_curve(equity_curve, ticker, initial_capital):
     plt.legend()
     plt.tight_layout()
     plt.show()
+
+def validate(initial_capital, commission, slippage, position_size):
+    if (initial_capital <= 0) or (commission < 0) or (slippage < 0 or slippage > 1) or (
+            position_size < 0 or position_size > 1):
+        raise ValueError("Invalid Inputs")
+    return True

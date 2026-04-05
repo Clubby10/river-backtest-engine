@@ -18,12 +18,12 @@ class SMACrossover(BaseStrategy):
 
         window = data['Close'].iloc[:current_index + 1]
 
-        short_sma = window.iloc[-self.short_window].mean()
-        long_sma = window.iloc[-self.long_window].mean()
+        short_sma = window.iloc[-self.short_window:].mean()
+        long_sma = window.iloc[-self.long_window:].mean()
 
         prev_window = data['Close'].iloc[:current_index]
-        prev_short = prev_window.iloc[-self.short_window].mean()
-        prev_long = prev_window.iloc[-self.long_window].mean()
+        prev_short = prev_window.iloc[-self.short_window:].mean()
+        prev_long = prev_window.iloc[-self.long_window:].mean()
 
         # crossover up
         if prev_short <= prev_long and short_sma > long_sma:

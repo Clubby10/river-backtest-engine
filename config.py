@@ -12,12 +12,16 @@ class BacktestConfig:
     position_size: float = 0.50
 
     # Set both to None to disable static Kelly sizing.
-    kelly_p: Optional[float] = 0.88
-    kelly_b: Optional[float] = 3.0
+    kelly_p: Optional[float] = None
+    kelly_b: Optional[float] = None
 
     use_rolling_kelly: bool = True
     kelly_lookback: Optional[int] = 20
     kelly_min_trades: int = 10
+
+    # Risk management exits. Set to None to disable.
+    stop_loss_pct: Optional[float] = 0.25
+    take_profit_pct: Optional[float] = 0.50
 
     short_window: int = 20
     long_window: int = 50

@@ -15,6 +15,8 @@ kelly_b = CONFIG.kelly_b
 use_rolling_kelly = CONFIG.use_rolling_kelly
 kelly_lookback = CONFIG.kelly_lookback
 kelly_min_trades = CONFIG.kelly_min_trades
+stop_loss_pct = CONFIG.stop_loss_pct
+take_profit_pct = CONFIG.take_profit_pct
 
 kelly_position_size = None
 if kelly_p is not None and kelly_b is not None:
@@ -38,6 +40,8 @@ engine = BacktestEngine(
     use_rolling_kelly=use_rolling_kelly,
     kelly_lookback=kelly_lookback,
     kelly_min_trades=kelly_min_trades,
+    stop_loss_pct=stop_loss_pct,
+    take_profit_pct=take_profit_pct,
 )
 results = engine.run(data)
 

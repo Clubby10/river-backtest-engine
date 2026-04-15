@@ -22,6 +22,7 @@ class BacktestConfig:
     # Risk management exits. Set to None to disable.
     stop_loss_pct: Optional[float] = 0.25
     take_profit_pct: Optional[float] = 0.50
+    max_drawdown_cutoff_pct: Optional[float] = 0.20
 
     short_window: int = 20
     long_window: int = 50

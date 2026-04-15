@@ -7,7 +7,8 @@ class BacktestEngine:
     def __init__(self, strategy, initial_capital: float = 10_000.0, commission: float = 0, slippage: float = 0,
                  position_size: float = 1, kelly_position_size: Optional[float] = None,
                  use_rolling_kelly: bool = False, kelly_lookback: Optional[int] = None, kelly_min_trades: int = 10,
-                 stop_loss_pct: Optional[float] = None, take_profit_pct: Optional[float] = None):
+                 stop_loss_pct: Optional[float] = None, take_profit_pct: Optional[float] = None,
+                 max_drawdown_cutoff_pct: Optional[float] = None):
         self.strategy = strategy
         self.initial_capital = initial_capital
         self.commission = commission
@@ -18,6 +19,7 @@ class BacktestEngine:
         self.kelly_min_trades = kelly_min_trades
         self.stop_loss_pct = stop_loss_pct
         self.take_profit_pct = take_profit_pct
+        self.max_drawdown_cutoff_pct = max_drawdown_cutoff_pct
 
         if self.kelly_min_trades < 1:
             raise ValueError("kelly_min_trades must be >= 1")
@@ -27,6 +29,8 @@ class BacktestEngine:
             raise ValueError("stop_loss_pct must be between 0 and 1")
         if self.take_profit_pct is not None and not 0 < self.take_profit_pct < 1:
             raise ValueError("take_profit_pct must be between 0 and 1")
+        if self.max_drawdown_cutoff_pct is not None and not 0 < self.max_drawdown_cutoff_pct < 1:
+            raise ValueError("max_drawdown_cutoff_pct must be between 0 and 1")
 
     def _estimate_rolling_kelly(self, closed_trade_returns: list[float]) -> Optional[float]:
         if len(closed_trade_returns) < self.kelly_min_trades:
@@ -63,6 +67,8 @@ class BacktestEngine:
         open_trade_share_cost = 0.0
         closed_trade_returns = []
         pending_signal = 0
+        peak_equity = self.initial_capital
+        trading_halted = False
 
         equity_curve = []
         trades = []
@@ -72,12 +78,12 @@ class BacktestEngine:
             date = data.index[i]
 
             # execute pending trade at today's open (from previous close signal)
-            if pending_signal != 0:
+            if not trading_halted and pending_signal != 0:
                 execution_price = float(data['Open'].iloc[i])
                 execution_date = date
 
             # BUY
-            if pending_signal == 1 and cash > self.commission:
+            if not trading_halted and pending_signal == 1 and cash > self.commission:
                 current_position_size = self.position_size
                 if self.use_rolling_kelly:
                     rolling_kelly = self._estimate_rolling_kelly(closed_trade_returns)
@@ -99,7 +105,7 @@ class BacktestEngine:
                     open_trade_share_cost += new_shares * execution_price
                     trades.append({'date': execution_date, 'action': 'BUY', 'price': execution_price, 'shares': shares})
             # SELL
-            elif pending_signal == -1 and shares > 0:
+            elif not trading_halted and pending_signal == -1 and shares > 0:
                 execution_price = execution_price * (1 - self.slippage)
                 sell_value = (shares * execution_price) - self.commission
                 cash = cash + sell_value
@@ -113,7 +119,7 @@ class BacktestEngine:
                 open_trade_share_cost = 0.0
                 trades.append({'date': execution_date, 'action': 'SELL', 'price': execution_price, 'shares': shares})
 
-            if shares > 0 and open_trade_share_cost > 0:
+            if not trading_halted and shares > 0 and open_trade_share_cost > 0:
                 average_entry_price = open_trade_share_cost / shares
                 low_price = float(data['Low'].iloc[i])
                 high_price = float(data['High'].iloc[i])
@@ -149,10 +155,38 @@ class BacktestEngine:
                     open_trade_share_cost = 0.0
                     trades.append({'date': date, 'action': exit_action, 'price': execution_price, 'shares': shares})
 
-            signal = self.strategy.generate_signal(data, i)
-            pending_signal = signal if i + 1 < len(data) else 0
-
             total_value = cash + (shares * price)
+
+            if total_value > peak_equity:
+                peak_equity = total_value
+
+            if not trading_halted and self.max_drawdown_cutoff_pct is not None and peak_equity > 0:
+                drawdown_pct = (peak_equity - total_value) / peak_equity
+                if drawdown_pct >= self.max_drawdown_cutoff_pct:
+                    if shares > 0:
+                        execution_price = price * (1 - self.slippage)
+                        sell_value = (shares * execution_price) - self.commission
+                        cash = cash + sell_value
+
+                        if open_trade_cost > 0:
+                            trade_return = (sell_value - open_trade_cost) / open_trade_cost
+                            closed_trade_returns.append(trade_return)
+
+                        shares = 0
+                        open_trade_cost = 0.0
+                        open_trade_share_cost = 0.0
+                        trades.append({'date': date, 'action': 'MAX_DRAWDOWN_EXIT', 'price': execution_price, 'shares': shares})
+
+                    trading_halted = True
+                    pending_signal = 0
+                    total_value = cash
+
+            if not trading_halted:
+                signal = self.strategy.generate_signal(data, i)
+                pending_signal = signal if i + 1 < len(data) else 0
+            else:
+                pending_signal = 0
+
             equity_curve.append({'date': date, 'equity': total_value})
 
         equity_df = pd.DataFrame(equity_curve).set_index('date')

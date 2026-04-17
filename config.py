@@ -1,10 +1,13 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 
 @dataclass(frozen=True)
 class BacktestConfig:
-    ticker: str = "AAPL"
+    tickers: list[str] = field(default_factory=lambda: ["AAPL", "MSFT", "NVDA"])
+    allocations: Optional[dict[str, float]] = field(
+        default_factory=lambda: {"AAPL": 0.34, "MSFT": 0.33, "NVDA": 0.33}
+    )
     start_date: str = "2018-01-01"
     initial_capital: float = 10_000.0
     commission: float = 2.0

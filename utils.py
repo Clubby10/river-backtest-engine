@@ -7,9 +7,14 @@ def print_results(metrics, ticker) -> None:
     print(f"Max Drawdown:   {metrics['max_drawdown_pct']}%")
     print(f"Num Trades:     {metrics['num_trades']}")
 
-def plot_equity_curve(equity_curve, ticker, initial_capital) -> None:
+def plot_equity_curve(equity_curve, ticker, initial_capital, ticker_value_curve=None) -> None:
     plt.figure(figsize=(12, 5))
-    plt.plot(equity_curve['equity'], label='Strategy equity', color='steelblue')
+    plt.plot(equity_curve['equity'], label='Portfolio equity', color='steelblue', linewidth=2)
+
+    if ticker_value_curve is not None:
+        for symbol in ticker_value_curve.columns:
+            plt.plot(ticker_value_curve[symbol], label=f'{symbol} position value', alpha=0.8)
+
     plt.axhline(y=initial_capital, color='gray', linestyle='--', label='Initial capital')
     plt.title(f'Equity Curve — SMA Crossover on {ticker}')
     plt.xlabel('Date')

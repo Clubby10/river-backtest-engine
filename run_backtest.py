@@ -5,7 +5,10 @@ from main import BacktestEngine
 from strategies.sma_crossover import SMACrossover
 from utils import print_results, plot_equity_curve, validate, kelly_criterion
 
-ticker = CONFIG.ticker
+tickers = CONFIG.tickers
+allocations = CONFIG.allocations
+if not tickers:
+    raise ValueError("CONFIG.tickers must contain at least one ticker")
 initial_capital = CONFIG.initial_capital
 commission = CONFIG.commission
 slippage = CONFIG.slippage
@@ -27,8 +30,11 @@ validate(initial_capital, commission, slippage, position_size)
 if kelly_position_size is not None:
     validate(initial_capital, commission, slippage, kelly_position_size)
 
-data = yf.download(ticker, start=CONFIG.start_date, auto_adjust=True)
-data.columns = data.columns.droplevel(1)
+portfolio_data = {}
+for symbol in tickers:
+    data = yf.download(symbol, start=CONFIG.start_date, auto_adjust=True)
+    data.columns = data.columns.droplevel(1)
+    portfolio_data[symbol] = data
 
 strategy = SMACrossover(short_window=CONFIG.short_window, long_window=CONFIG.long_window)
 engine = BacktestEngine(
@@ -44,13 +50,16 @@ engine = BacktestEngine(
     stop_loss_pct=stop_loss_pct,
     take_profit_pct=take_profit_pct,
     max_drawdown_cutoff_pct=max_drawdown_cutoff_pct,
+    allocations=allocations,
 )
-results = engine.run(data)
+results = engine.run(portfolio_data)
 
 equity_curve = results['equity_curve']
+ticker_value_curve = results['ticker_value_curve']
 trades = results['trades']
 metrics = results['metrics']
 metrics['num_trades'] = len(trades)
 
-print_results(metrics, ticker)
-plot_equity_curve(equity_curve, ticker, initial_capital)
+label = ",".join(tickers)
+print_results(metrics, label)
+plot_equity_curve(equity_curve, label, initial_capital, ticker_value_curve=ticker_value_curve)

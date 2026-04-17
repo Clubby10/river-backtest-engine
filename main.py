@@ -61,6 +61,21 @@ class BacktestEngine:
 
         return self.allocations
 
+    def _compute_benchmark_curve(self, portfolio_data: dict[str, pd.DataFrame], all_dates: list,
+                                 allocations: dict[str, float]) -> pd.DataFrame:
+        benchmark_df = pd.DataFrame(index=pd.Index(all_dates, name='date'))
+
+        for ticker, df in portfolio_data.items():
+            close = df['Close'].astype(float)
+            initial_close = float(close.iloc[0])
+            alloc_capital = self.initial_capital * allocations[ticker]
+            scaled = alloc_capital * (close / initial_close)
+            aligned = scaled.reindex(benchmark_df.index).ffill().fillna(alloc_capital)
+            benchmark_df[ticker] = aligned
+
+        benchmark_df['benchmark_equity'] = benchmark_df.sum(axis=1)
+        return benchmark_df
+
     def _estimate_rolling_kelly(self, closed_trade_returns: list[float]) -> Optional[float]:
         if len(closed_trade_returns) < self.kelly_min_trades:
             return None
@@ -105,6 +120,7 @@ class BacktestEngine:
         trading_halted = False
 
         all_dates = sorted(set().union(*[df.index.tolist() for df in portfolio_data.values()]))
+        benchmark_curve = self._compute_benchmark_curve(portfolio_data, all_dates, allocations)
         date_to_pos = {
             ticker: {dt: idx for idx, dt in enumerate(df.index)}
             for ticker, df in portfolio_data.items()
@@ -269,17 +285,26 @@ class BacktestEngine:
 
         equity_df = pd.DataFrame(equity_curve).set_index('date')
         ticker_value_df = pd.DataFrame(ticker_value_curve).set_index('date')
+        closed_trade_returns_all = [
+            ret for ticker in tickers for ret in closed_trade_returns[ticker]
+        ]
 
-        metrics = self._compute_metrics(equity_df)
+        metrics = self._compute_metrics(
+            equity_df=equity_df,
+            closed_trade_returns=closed_trade_returns_all,
+            benchmark_equity=benchmark_curve['benchmark_equity']
+        )
 
         return {
             'equity_curve': equity_df,
             'ticker_value_curve': ticker_value_df,
+            'benchmark_curve': benchmark_curve,
             'trades': pd.DataFrame(trades),
             'metrics': metrics
         }
 
-    def _compute_metrics(self, equity_df: pd.DataFrame) -> dict:
+    def _compute_metrics(self, equity_df: pd.DataFrame, closed_trade_returns: list[float],
+                         benchmark_equity: Optional[pd.Series] = None) -> dict:
         equity = equity_df['equity']
 
         total_return = (equity.iloc[-1] - self.initial_capital) / self.initial_capital * 100
@@ -292,9 +317,33 @@ class BacktestEngine:
         drawdown = (equity - rolling_max) / rolling_max
         max_drawdown = drawdown.min() * 100
 
+        calmar = total_return / abs(max_drawdown) if max_drawdown != 0 else 0.0
+
+        wins = [ret for ret in closed_trade_returns if ret > 0]
+        losses = [ret for ret in closed_trade_returns if ret < 0]
+        win_rate = (len(wins) / len(closed_trade_returns) * 100) if closed_trade_returns else 0.0
+        avg_win = (sum(wins) / len(wins) * 100) if wins else 0.0
+        avg_loss = (sum(losses) / len(losses) * 100) if losses else 0.0
+        win_loss_ratio = (abs(avg_win / avg_loss) if avg_loss != 0 else 0.0)
+
+        benchmark_return = 0.0
+        benchmark_outperformance = 0.0
+        if benchmark_equity is not None and len(benchmark_equity) > 0:
+            benchmark_return = (
+                (benchmark_equity.iloc[-1] - benchmark_equity.iloc[0]) / benchmark_equity.iloc[0] * 100
+            )
+            benchmark_outperformance = total_return - benchmark_return
+
         return {
             'total_return_pct': round(total_return, 2),
             'sharpe_ratio': round(sharpe, 2),
             'max_drawdown_pct': round(max_drawdown, 2),
+            'calmar_ratio': round(calmar, 2),
+            'win_rate_pct': round(win_rate, 2),
+            'avg_win_pct': round(avg_win, 2),
+            'avg_loss_pct': round(avg_loss, 2),
+            'avg_win_loss_ratio': round(win_loss_ratio, 2),
+            'benchmark_return_pct': round(benchmark_return, 2),
+            'outperformance_vs_benchmark_pct': round(benchmark_outperformance, 2),
             'num_trades': 0
         }

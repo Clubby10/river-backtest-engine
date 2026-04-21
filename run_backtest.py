@@ -1,65 +1,46 @@
-import yfinance as yf
-
+from backtest_builder import build_engine_and_data
 from config import CONFIG
-from main import BacktestEngine
 from strategies.sma_crossover import SMACrossover
-from utils import print_results, plot_equity_curve, validate, kelly_criterion
-
-tickers = CONFIG.tickers
-allocations = CONFIG.allocations
-if not tickers:
-    raise ValueError("CONFIG.tickers must contain at least one ticker")
-initial_capital = CONFIG.initial_capital
-commission = CONFIG.commission
-slippage = CONFIG.slippage
-position_size = CONFIG.position_size
-kelly_p = CONFIG.kelly_p
-kelly_b = CONFIG.kelly_b
-use_rolling_kelly = CONFIG.use_rolling_kelly
-kelly_lookback = CONFIG.kelly_lookback
-kelly_min_trades = CONFIG.kelly_min_trades
-stop_loss_pct = CONFIG.stop_loss_pct
-take_profit_pct = CONFIG.take_profit_pct
-max_drawdown_cutoff_pct = CONFIG.max_drawdown_cutoff_pct
-
-kelly_position_size = None
-if kelly_p is not None and kelly_b is not None:
-    kelly_position_size = kelly_criterion(kelly_p, kelly_b)
-
-validate(initial_capital, commission, slippage, position_size)
-if kelly_position_size is not None:
-    validate(initial_capital, commission, slippage, kelly_position_size)
-
-portfolio_data = {}
-for symbol in tickers:
-    data = yf.download(symbol, start=CONFIG.start_date, auto_adjust=True)
-    data.columns = data.columns.droplevel(1)
-    portfolio_data[symbol] = data
+from utils import print_results, plot_equity_curve
 
 strategy = SMACrossover(short_window=CONFIG.short_window, long_window=CONFIG.long_window)
-engine = BacktestEngine(
+engine, portfolio_data, tickers, _ = build_engine_and_data(
     strategy=strategy,
-    initial_capital=initial_capital,
-    commission=commission,
-    slippage=slippage,
-    position_size=position_size,
-    kelly_position_size=kelly_position_size,
-    use_rolling_kelly=use_rolling_kelly,
-    kelly_lookback=kelly_lookback,
-    kelly_min_trades=kelly_min_trades,
-    stop_loss_pct=stop_loss_pct,
-    take_profit_pct=take_profit_pct,
-    max_drawdown_cutoff_pct=max_drawdown_cutoff_pct,
-    allocations=allocations,
+    tickers=CONFIG.tickers,
+    start_date=CONFIG.start_date,
+    initial_capital=CONFIG.initial_capital,
+    commission=CONFIG.commission,
+    slippage=CONFIG.slippage,
+    position_size=CONFIG.position_size,
+    kelly_p=CONFIG.kelly_p,
+    kelly_b=CONFIG.kelly_b,
+    use_rolling_kelly=CONFIG.use_rolling_kelly,
+    kelly_lookback=CONFIG.kelly_lookback,
+    kelly_min_trades=CONFIG.kelly_min_trades,
+    stop_loss_pct=CONFIG.stop_loss_pct,
+    take_profit_pct=CONFIG.take_profit_pct,
+    max_drawdown_cutoff_pct=CONFIG.max_drawdown_cutoff_pct,
+    allocations=CONFIG.allocations,
+    show_download_progress=True,
 )
 results = engine.run(portfolio_data)
 
 equity_curve = results['equity_curve']
 ticker_value_curve = results['ticker_value_curve']
+benchmark_curve = results.get('benchmark_curve')
 trades = results['trades']
 metrics = results['metrics']
 metrics['num_trades'] = len(trades)
 
 label = ",".join(tickers)
 print_results(metrics, label)
-plot_equity_curve(equity_curve, label, initial_capital, ticker_value_curve=ticker_value_curve)
+plot_equity_curve(
+    equity_curve,
+    label,
+    CONFIG.initial_capital,
+    ticker_value_curve=ticker_value_curve,
+    metrics=metrics,
+    benchmark_curve=benchmark_curve,
+    show_benchmark=False,
+    normalize_benchmark=True,
+)

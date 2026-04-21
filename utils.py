@@ -1,5 +1,59 @@
 import matplotlib.pyplot as plt
 
+
+def draw_backtest_chart(
+    ax,
+    equity_curve,
+    ticker,
+    ticker_value_curve=None,
+    benchmark_curve=None,
+    show_benchmark=False,
+    normalize_benchmark=True,
+):
+    ax.clear()
+    ax.set_facecolor("#1e293b")
+    ax.plot(equity_curve.index, equity_curve["equity"], label="Portfolio Equity", color="#22d3ee", linewidth=2)
+
+    if benchmark_curve is not None and show_benchmark:
+        benchmark_series = benchmark_curve["benchmark_equity"]
+        benchmark_label = "Benchmark"
+        if normalize_benchmark and len(benchmark_series) > 0:
+            benchmark_start = float(benchmark_series.iloc[0])
+            equity_start = float(equity_curve["equity"].iloc[0])
+            if benchmark_start != 0:
+                benchmark_series = benchmark_series * (equity_start / benchmark_start)
+                benchmark_label = "Benchmark (Normalized)"
+
+        ax.plot(
+            benchmark_curve.index,
+            benchmark_series,
+            label=benchmark_label,
+            color="#f59e0b",
+            linewidth=1.8,
+            linestyle="--",
+        )
+
+    palette = ["#60a5fa", "#34d399", "#f472b6", "#c084fc", "#f97316", "#a3e635"]
+    if ticker_value_curve is not None:
+        for idx, symbol in enumerate(ticker_value_curve.columns):
+            ax.plot(
+                ticker_value_curve.index,
+                ticker_value_curve[symbol],
+                label=f"{symbol} Position Value",
+                color=palette[idx % len(palette)],
+                alpha=0.8,
+                linewidth=1.4,
+            )
+
+    ax.set_title(f"Backtest: {ticker}", color="#f9fafb")
+    ax.set_ylabel("Value ($)", color="#d1d5db")
+    ax.tick_params(axis="x", colors="#d1d5db")
+    ax.tick_params(axis="y", colors="#d1d5db")
+    ax.grid(color="#334155", linestyle="--", linewidth=0.5, alpha=0.6)
+    legend = ax.legend(facecolor="#1e293b", edgecolor="#334155", fontsize=8)
+    for text in legend.get_texts():
+        text.set_color("#e5e7eb")
+
 def print_results(metrics, ticker) -> None:
     print(f"Backtest Results on {ticker}:")
     print(f"Total Return:   {metrics['total_return_pct']}%")
@@ -18,20 +72,45 @@ def print_results(metrics, ticker) -> None:
         print(f"Vs Benchmark:   {metrics['outperformance_vs_benchmark_pct']}%")
     print(f"Num Trades:     {metrics['num_trades']}")
 
-def plot_equity_curve(equity_curve, ticker, initial_capital, ticker_value_curve=None) -> None:
-    plt.figure(figsize=(12, 5))
-    plt.plot(equity_curve['equity'], label='Portfolio equity', color='steelblue', linewidth=2)
+def plot_equity_curve(equity_curve, ticker, initial_capital, ticker_value_curve=None, metrics=None,
+                      benchmark_curve=None, show_benchmark=False, normalize_benchmark=True) -> None:
+    fig, ax = plt.subplots(figsize=(14, 7), dpi=100)
+    fig.patch.set_facecolor("#0f172a")
 
-    if ticker_value_curve is not None:
-        for symbol in ticker_value_curve.columns:
-            plt.plot(ticker_value_curve[symbol], label=f'{symbol} position value', alpha=0.8)
+    draw_backtest_chart(
+        ax=ax,
+        equity_curve=equity_curve,
+        ticker=ticker,
+        ticker_value_curve=ticker_value_curve,
+        benchmark_curve=benchmark_curve,
+        show_benchmark=show_benchmark,
+        normalize_benchmark=normalize_benchmark,
+    )
 
-    plt.axhline(y=initial_capital, color='gray', linestyle='--', label='Initial capital')
-    plt.title(f'Equity Curve — SMA Crossover on {ticker}')
-    plt.xlabel('Date')
-    plt.ylabel('Portfolio Value ($)')
-    plt.legend()
-    plt.tight_layout()
+    if metrics is not None:
+        stat_chunks = [
+            f"Return: {metrics.get('total_return_pct', 0)}%",
+            f"Sharpe: {metrics.get('sharpe_ratio', 0)}",
+            f"MaxDD: {metrics.get('max_drawdown_pct', 0)}%",
+            f"Calmar: {metrics.get('calmar_ratio', 0)}",
+            f"Win Rate: {metrics.get('win_rate_pct', 0)}%",
+            f"Trades: {metrics.get('num_trades', 0)}",
+        ]
+        if 'benchmark_return_pct' in metrics:
+            stat_chunks.append(f"Benchmark: {metrics.get('benchmark_return_pct', 0)}%")
+
+        fig.text(
+            0.015,
+            0.96,
+            "  |  ".join(stat_chunks),
+            color="#e5e7eb",
+            fontsize=10,
+            ha="left",
+            va="top",
+            bbox=dict(facecolor="#1e293b", edgecolor="#334155", boxstyle="round,pad=0.35"),
+        )
+
+    fig.subplots_adjust(top=0.88)
     plt.show()
 
 def validate(initial_capital, commission, slippage, position_size) -> bool:

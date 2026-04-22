@@ -190,7 +190,7 @@ class BacktestGUI(ctk.CTk):
         for label, key, default in [
             ("Stop Loss %", "stop_loss_pct", "0.25"),
             ("Take Profit %", "take_profit_pct", "0.50"),
-            ("Max DD Cutoff %", "max_drawdown_cutoff_pct", "0.20"),
+            ("Max DD Cutoff %", "max_drawdown_cutoff_pct", ""),
             ("Kelly Lookback", "kelly_lookback", "20"),
             ("Kelly Min Trades", "kelly_min_trades", "10"),
             ("Kelly p (optional)", "kelly_p", ""),
@@ -278,7 +278,23 @@ class BacktestGUI(ctk.CTk):
 
     def _optional_float(self, value: str):
         value = value.strip()
-        return None if value == "" else float(value)
+        if value == "":
+            return None
+
+        normalized = value.replace("%", "").replace(",", ".").strip()
+        return float(normalized)
+
+    def _optional_pct(self, value: str):
+        parsed = self._optional_float(value)
+        if parsed is None:
+            return None
+
+        if parsed > 1:
+            if parsed <= 100:
+                return parsed / 100.0
+            raise ValueError("Percentage inputs must be between 0 and 100 (or 0 and 1).")
+
+        return parsed
 
     def _build_strategy(self):
         if self.strategy_var.get() == "SMA Crossover":
@@ -322,9 +338,9 @@ class BacktestGUI(ctk.CTk):
                 use_rolling_kelly=self.use_rolling_kelly.get(),
                 kelly_lookback=int(self.inputs["kelly_lookback"].get()),
                 kelly_min_trades=int(self.inputs["kelly_min_trades"].get()),
-                stop_loss_pct=self._optional_float(self.inputs["stop_loss_pct"].get()),
-                take_profit_pct=self._optional_float(self.inputs["take_profit_pct"].get()),
-                max_drawdown_cutoff_pct=self._optional_float(self.inputs["max_drawdown_cutoff_pct"].get()),
+                stop_loss_pct=self._optional_pct(self.inputs["stop_loss_pct"].get()),
+                take_profit_pct=self._optional_pct(self.inputs["take_profit_pct"].get()),
+                max_drawdown_cutoff_pct=self._optional_pct(self.inputs["max_drawdown_cutoff_pct"].get()),
                 allocations=allocations,
                 show_download_progress=False,
             )
@@ -376,6 +392,14 @@ class BacktestGUI(ctk.CTk):
         )
 
         self.canvas.draw_idle()
+        trades_df = results.get("trades")
+        if trades_df is not None and not trades_df.empty and "action" in trades_df.columns:
+            halted_rows = trades_df[trades_df["action"] == "MAX_DRAWDOWN_EXIT"]
+            if not halted_rows.empty:
+                halt_date = str(halted_rows.iloc[-1]["date"])
+                self.status_var.set(f"Backtest complete. Trading halted by Max DD cutoff on {halt_date}.")
+                return
+
         self.status_var.set("Backtest complete. Update params and run again.")
 
 

@@ -1,3 +1,6 @@
+import threading
+from concurrent.futures import Future
+
 import pandas as pd
 import numpy as np
 from typing import Optional
@@ -104,6 +107,32 @@ class BacktestEngine:
         kelly_size = kelly_criterion(p, b)
         return kelly_size if kelly_size > 0 else None
 
+    def _prepare_signals(self, portfolio_data):
+        prepare = getattr(self.strategy, "prepare_signals", None)
+        if prepare is None:
+            return None
+        if len(portfolio_data) == 1:
+            return {ticker: prepare(data) for ticker, data in portfolio_data.items()}
+
+        jobs = list(portfolio_data.items())
+        futures = {ticker: Future() for ticker in portfolio_data}
+
+        def worker(batch):
+            for ticker, data in batch:
+                try:
+                    futures[ticker].set_result(prepare(data))
+                except Exception as exc:
+                    futures[ticker].set_exception(exc)
+
+        worker_count = min(4, len(jobs))
+        workers = [threading.Thread(target=worker, args=(jobs[i::worker_count],))
+                   for i in range(worker_count)]
+        for thread in workers:
+            thread.start()
+        for thread in workers:
+            thread.join()
+        return {ticker: future.result() for ticker, future in futures.items()}
+
     def run(self, data: pd.DataFrame | dict[str, pd.DataFrame]) -> dict:
         portfolio_data = self._normalize_data(data)
         tickers = list(portfolio_data.keys())
@@ -126,6 +155,7 @@ class BacktestEngine:
             for ticker, df in portfolio_data.items()
         }
 
+        prepared_signals = self._prepare_signals(portfolio_data)
         equity_curve = []
         ticker_value_curve = []
         trades = []
@@ -236,7 +266,10 @@ class BacktestEngine:
                         })
 
                 if not trading_halted:
-                    signal = self.strategy.generate_signal(ticker_data, i)
+                    if prepared_signals is None:
+                        signal = self.strategy.generate_signal(ticker_data, i)
+                    else:
+                        signal = prepared_signals[ticker][i]
                     pending_signal[ticker] = signal if i + 1 < len(ticker_data) else 0
                 else:
                     pending_signal[ticker] = 0

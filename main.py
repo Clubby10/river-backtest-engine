@@ -138,6 +138,41 @@ class BacktestEngine:
         tickers = list(portfolio_data.keys())
         allocations = self._resolve_allocations(tickers)
 
+        all_dates = sorted(set().union(*(df.index for df in portfolio_data.values())))
+        benchmark_result = Future()
+
+        def compute_benchmark():
+            try:
+                curve = self._compute_benchmark_curve(portfolio_data, all_dates, allocations)
+                benchmark_result.set_result(curve)
+            except BaseException as exc:
+                benchmark_result.set_exception(exc)
+
+        worker = threading.Thread(target=compute_benchmark, name="buy-and-hold-benchmark")
+        worker.start()
+        try:
+            equity_df, ticker_value_df, trades, closed_trade_returns_all = self._simulate_trades(
+                portfolio_data, tickers, allocations, all_dates
+            )
+        finally:
+            worker.join()
+
+        benchmark_curve = benchmark_result.result()
+        metrics = self._compute_metrics(
+            equity_df=equity_df,
+            closed_trade_returns=closed_trade_returns_all,
+            benchmark_equity=benchmark_curve['benchmark_equity']
+        )
+
+        return {
+            'equity_curve': equity_df,
+            'ticker_value_curve': ticker_value_df,
+            'benchmark_curve': benchmark_curve,
+            'trades': pd.DataFrame(trades),
+            'metrics': metrics
+        }
+
+    def _simulate_trades(self, portfolio_data, tickers, allocations, all_dates):
         cash = self.initial_capital
         positions = {ticker: 0 for ticker in tickers}
         open_trade_cost = {ticker: 0.0 for ticker in tickers}
@@ -148,8 +183,6 @@ class BacktestEngine:
         peak_equity = self.initial_capital
         trading_halted = False
 
-        all_dates = sorted(set().union(*[df.index.tolist() for df in portfolio_data.values()]))
-        benchmark_curve = self._compute_benchmark_curve(portfolio_data, all_dates, allocations)
         date_to_pos = {
             ticker: {dt: idx for idx, dt in enumerate(df.index)}
             for ticker, df in portfolio_data.items()
@@ -322,19 +355,7 @@ class BacktestEngine:
             ret for ticker in tickers for ret in closed_trade_returns[ticker]
         ]
 
-        metrics = self._compute_metrics(
-            equity_df=equity_df,
-            closed_trade_returns=closed_trade_returns_all,
-            benchmark_equity=benchmark_curve['benchmark_equity']
-        )
-
-        return {
-            'equity_curve': equity_df,
-            'ticker_value_curve': ticker_value_df,
-            'benchmark_curve': benchmark_curve,
-            'trades': pd.DataFrame(trades),
-            'metrics': metrics
-        }
+        return equity_df, ticker_value_df, trades, closed_trade_returns_all
 
     def _compute_metrics(self, equity_df: pd.DataFrame, closed_trade_returns: list[float],
                          benchmark_equity: Optional[pd.Series] = None) -> dict:

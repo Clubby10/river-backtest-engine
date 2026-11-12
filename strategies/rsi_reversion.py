@@ -34,6 +34,12 @@ class RSIReversion(BaseStrategy):
         rsi = rsi.mask((avg_gain == 0) & (avg_loss == 0), 50.0)
         return rsi.fillna(50)
 
+    def prepare_signals(self, data: pd.DataFrame):
+        rsi = self._compute_rsi(data["Close"])
+        signals = (rsi <= self.oversold).astype("int8") - (rsi >= self.overbought).astype("int8")
+        signals.iloc[:self.period] = 0
+        return signals.to_numpy()
+
     def generate_signal(self, data: pd.DataFrame, current_index: int) -> int:
         if current_index < self.period:
             return 0

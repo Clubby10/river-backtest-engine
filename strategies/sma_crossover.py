@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 from strategies.base_strategy import BaseStrategy
 
@@ -11,6 +12,25 @@ class SMACrossover(BaseStrategy):
     def __init__(self, short_window: int = 10, long_window: int = 50):
         self.short_window = short_window
         self.long_window = long_window
+
+    def prepare_signals(self, data: pd.DataFrame):
+        if self.short_window <= 0 or self.long_window <= 0:
+            return [self.generate_signal(data, i) for i in range(len(data))]
+
+        close = data["Close"]
+        short = close.rolling(self.short_window, min_periods=1).mean()
+        long = close.rolling(self.long_window, min_periods=1).mean()
+        buy = (short.shift() <= long.shift()) & (short > long)
+        sell = (short.shift() >= long.shift()) & (short < long)
+        signals = buy.astype("int8") - sell.astype("int8")
+
+        # Rolling and slice means can round differently at a crossover boundary.
+        near_tie = np.isclose(short, long, rtol=1e-13, atol=1e-15)
+        for i in np.flatnonzero(near_tie[:-1] | near_tie[1:]) + 1:
+            if i >= self.long_window:
+                signals.iloc[i] = self.generate_signal(data, i)
+        signals.iloc[:self.long_window] = 0
+        return signals.to_numpy()
 
     def generate_signal(self, data: pd.DataFrame, current_index: int) -> int:
         if current_index < self.long_window:

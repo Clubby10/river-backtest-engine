@@ -1,3 +1,5 @@
+"""Charts and console presentation of backtest results."""
+
 import matplotlib.pyplot as plt
 
 
@@ -12,7 +14,13 @@ def draw_backtest_chart(
 ):
     ax.clear()
     ax.set_facecolor("#1e293b")
-    ax.plot(equity_curve.index, equity_curve["equity"], label="Portfolio Equity", color="#22d3ee", linewidth=2)
+    ax.plot(
+        equity_curve.index,
+        equity_curve["equity"],
+        label="Portfolio Equity",
+        color="#22d3ee",
+        linewidth=2,
+    )
 
     if benchmark_curve is not None and show_benchmark:
         benchmark_series = benchmark_curve["benchmark_equity"]
@@ -54,26 +62,35 @@ def draw_backtest_chart(
     for text in legend.get_texts():
         text.set_color("#e5e7eb")
 
+
 def print_results(metrics, ticker) -> None:
     print(f"Backtest Results on {ticker}:")
     print(f"Total Return:   {metrics['total_return_pct']}%")
     print(f"Sharpe Ratio:   {metrics['sharpe_ratio']}")
     print(f"Max Drawdown:   {metrics['max_drawdown_pct']}%")
-    if 'calmar_ratio' in metrics:
+    if "calmar_ratio" in metrics:
         print(f"Calmar Ratio:   {metrics['calmar_ratio']}")
-    if 'win_rate_pct' in metrics:
+    if "win_rate_pct" in metrics:
         print(f"Win Rate:       {metrics['win_rate_pct']}%")
-    if 'avg_win_pct' in metrics and 'avg_loss_pct' in metrics:
+    if "avg_win_pct" in metrics and "avg_loss_pct" in metrics:
         print(f"Avg Win/Loss:   {metrics['avg_win_pct']}% / {metrics['avg_loss_pct']}%")
-    if 'avg_win_loss_ratio' in metrics:
+    if "avg_win_loss_ratio" in metrics:
         print(f"Win/Loss Ratio: {metrics['avg_win_loss_ratio']}")
-    if 'benchmark_return_pct' in metrics and 'outperformance_vs_benchmark_pct' in metrics:
+    if "benchmark_return_pct" in metrics and "outperformance_vs_benchmark_pct" in metrics:
         print(f"Benchmark Ret:  {metrics['benchmark_return_pct']}%")
         print(f"Vs Benchmark:   {metrics['outperformance_vs_benchmark_pct']}%")
     print(f"Num Trades:     {metrics['num_trades']}")
 
-def plot_equity_curve(equity_curve, ticker, initial_capital, ticker_value_curve=None, metrics=None,
-                      benchmark_curve=None, show_benchmark=False, normalize_benchmark=True) -> None:
+
+def plot_equity_curve(
+    equity_curve,
+    ticker,
+    ticker_value_curve=None,
+    metrics=None,
+    benchmark_curve=None,
+    show_benchmark=False,
+    normalize_benchmark=True,
+) -> None:
     fig, ax = plt.subplots(figsize=(14, 7), dpi=100)
     fig.patch.set_facecolor("#0f172a")
 
@@ -96,7 +113,7 @@ def plot_equity_curve(equity_curve, ticker, initial_capital, ticker_value_curve=
             f"Win Rate: {metrics.get('win_rate_pct', 0)}%",
             f"Trades: {metrics.get('num_trades', 0)}",
         ]
-        if 'benchmark_return_pct' in metrics:
+        if "benchmark_return_pct" in metrics:
             stat_chunks.append(f"Benchmark: {metrics.get('benchmark_return_pct', 0)}%")
 
         fig.text(
@@ -112,19 +129,3 @@ def plot_equity_curve(equity_curve, ticker, initial_capital, ticker_value_curve=
 
     fig.subplots_adjust(top=0.88)
     plt.show()
-
-def validate(initial_capital, commission, slippage, position_size) -> bool:
-    if (initial_capital <= 0) or (commission < 0) or (slippage < 0 or slippage > 1) or (
-            position_size < 0 or position_size > 1):
-        raise ValueError("Invalid Inputs")
-    return True
-
-def kelly_criterion(p: float, b: float) -> float:
-    if not 0 <= p <= 1:
-        raise ValueError("p must be between 0 and 1")
-    if b <= 0:
-        raise ValueError("b must be greater than 0")
-
-    q = 1 - p
-    f = (b * p - q) / b
-    return max(0.0, min(1.0, f))

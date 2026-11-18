@@ -1,6 +1,6 @@
 import pandas as pd
 
-from strategies.base_strategy import BaseStrategy
+from .base import BaseStrategy
 
 
 class RSIReversion(BaseStrategy):
@@ -37,14 +37,14 @@ class RSIReversion(BaseStrategy):
     def prepare_signals(self, data: pd.DataFrame):
         rsi = self._compute_rsi(data["Close"])
         signals = (rsi <= self.oversold).astype("int8") - (rsi >= self.overbought).astype("int8")
-        signals.iloc[:self.period] = 0
+        signals.iloc[: self.period] = 0
         return signals.to_numpy()
 
     def generate_signal(self, data: pd.DataFrame, current_index: int) -> int:
         if current_index < self.period:
             return 0
 
-        close_window = data['Close'].iloc[:current_index + 1]
+        close_window = data["Close"].iloc[: current_index + 1]
         current_rsi = float(self._compute_rsi(close_window).iloc[-1])
 
         if current_rsi <= self.oversold:

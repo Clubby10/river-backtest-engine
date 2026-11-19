@@ -4,6 +4,17 @@ from .base import BaseStrategy
 
 
 class RSIReversion(BaseStrategy):
+    name = "RSI Reversion"
+    description = (
+        "Buys when RSI is at or below the oversold threshold "
+        "and sells when it is at or above the overbought threshold."
+    )
+    default_parameters = {
+        "period": 14,
+        "oversold": 30.0,
+        "overbought": 70.0,
+    }
+
     def __init__(self, period: int = 14, oversold: float = 30.0, overbought: float = 70.0):
         if period < 2:
             raise ValueError("period must be >= 2")

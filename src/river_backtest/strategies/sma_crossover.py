@@ -11,6 +11,15 @@ class SMACrossover(BaseStrategy):
     HOLD otherwise.
     https://www.researchgate.net/publication/370888513_Simple_Moving_Average_SMA_Crossover_Strategy_with_Buy_Sell_Indicator
     """
+    name = "SMA Crossover"
+    description = (
+        "Buys when the short moving average crosses above the long "
+        "moving average and sells when it crosses below."
+    )
+    default_parameters = {
+        "short_window": 10,
+        "long_window": 50,
+    }
 
     def __init__(self, short_window: int = 10, long_window: int = 50):
         if not isinstance(short_window, int) or short_window < 1:

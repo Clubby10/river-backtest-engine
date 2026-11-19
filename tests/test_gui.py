@@ -45,6 +45,16 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(config.tickers, ["AAA"])
         self.assertEqual(config.allocations, {"AAA": 1})
         self.assertEqual(config.initial_capital, 1000)
+        self.assertEqual(config.strategy_parameters, {"short_window": 5, "long_window": 15})
+        app.strategy_var.get.return_value = "RSI Reversion"
+        app.rsi_period = value("7")
+        app.rsi_oversold = value("25")
+        app.rsi_overbought = value("75")
+        rsi_config = BacktestGUI._collect_config(app)
+        self.assertEqual(
+            rsi_config.strategy_parameters,
+            {"period": 7, "oversold": 25.0, "overbought": 75.0},
+        )
         self.assertEqual(config.stop_loss_pct, 0.25)
         self.assertEqual(config.take_profit_pct, 0.5)
         self.assertIsNone(config.kelly_lookback)

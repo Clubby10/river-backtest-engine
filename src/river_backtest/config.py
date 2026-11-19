@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field, replace
 from datetime import date
 from math import isfinite
-from typing import Optional
+from typing import Any, Optional
 
 from .risk import kelly_criterion
 
@@ -81,11 +81,7 @@ class BacktestConfig:
     max_drawdown_cutoff_pct: Optional[float] = 0.20
 
     strategy: str = "SMA Crossover"
-    short_window: int = 20
-    long_window: int = 50
-    rsi_period: int = 14
-    rsi_oversold: float = 30.0
-    rsi_overbought: float = 70.0
+    strategy_parameters: dict[str, Any] = field(default_factory=dict)
 
     def validated(self) -> "BacktestConfig":
         """Return a normalized copy, independent of the caller's portfolio containers."""
@@ -111,7 +107,12 @@ class BacktestConfig:
             kelly_criterion(self.kelly_p, self.kelly_b)
         if self.strategy not in ("SMA Crossover", "RSI Reversion"):
             raise ValueError(f"Unknown strategy: {self.strategy}")
-        return replace(self, tickers=tickers, allocations=allocations)
+        return replace(
+            self,
+            tickers=tickers,
+            allocations=allocations,
+            strategy_parameters=dict(self.strategy_parameters),
+        )
 
 
 CONFIG = BacktestConfig()

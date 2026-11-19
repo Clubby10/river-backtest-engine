@@ -16,8 +16,8 @@ class RSIReversion(BaseStrategy):
     }
 
     def __init__(self, period: int = 14, oversold: float = 30.0, overbought: float = 70.0):
-        if period < 2:
-            raise ValueError("period must be >= 2")
+        if isinstance(period, bool) or not isinstance(period, int) or period < 2:
+            raise ValueError("period must be an integer >= 2")
         if not 0 <= oversold <= 100:
             raise ValueError("oversold must be between 0 and 100")
         if not 0 <= overbought <= 100:

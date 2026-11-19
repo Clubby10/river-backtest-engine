@@ -160,6 +160,17 @@ class ApiTests(unittest.TestCase):
                 self.assertIn("detail", response.json())
         self.run.assert_not_called()
 
+    def test_non_integer_rsi_period_returns_422_before_execution(self):
+        for period in (2.5, 14.0):
+            with self.subTest(period=period):
+                response = self.client.post(
+                    "/backtest",
+                    json={"strategy": "RSI Reversion", "strategy_parameters": {"period": period}},
+                )
+                self.assertEqual(response.status_code, 422, response.text)
+                self.assertIn("integer", response.json()["detail"])
+        self.run.assert_not_called()
+
     def test_invalid_query_and_missing_body_fail_before_execution(self):
         for response in [
             self.client.post("/backtest?include_details=invalid", json={}),

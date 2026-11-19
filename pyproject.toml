@@ -11,7 +11,7 @@ requires-python = ">=3.10"
 dependencies = ["pandas", "numpy", "matplotlib", "customtkinter", "yfinance", "fastapi"]
 
 [project.optional-dependencies]
-dev = ["ruff", "httpx2"]
+dev = ["ruff", "httpx"]
 
 [project.scripts]
 river-backtest = "river_backtest.cli:main"

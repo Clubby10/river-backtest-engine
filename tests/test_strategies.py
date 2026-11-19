@@ -9,6 +9,17 @@ from river_backtest.strategies.sma_crossover import SMACrossover
 
 
 class StrategyTests(unittest.TestCase):
+    def test_rsi_rejects_invalid_period_types_and_values(self):
+        for period in (2.5, 14.0, "14", None, True, False, 0, 1):
+            with self.subTest(period=period), self.assertRaisesRegex(ValueError, "integer"):
+                RSIReversion(period=period)
+
+    def test_rsi_minimum_integer_period_generates_signals(self):
+        data = pd.DataFrame({"Close": [10.0, 11.0, 9.0, 12.0]})
+        signals = RSIReversion(period=2).prepare_signals(data)
+        self.assertEqual(len(signals), len(data))
+        self.assertEqual(signals[:2].tolist(), [0, 0])
+
     def test_prepared_signals_match_incremental_signals(self):
         rng = np.random.default_rng(19)
         paths = [np.full(100, 100.0), np.arange(1, 101), 100 + rng.normal(size=100).cumsum()]

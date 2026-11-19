@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pandas as pd
 
 from river_backtest.config import CONFIG, GUI_CONFIG, BacktestConfig
-from river_backtest.service import run_backtest
+from river_backtest.service import build_strategy, run_backtest
 
 
 class ConfigTests(unittest.TestCase):
@@ -19,6 +19,29 @@ class ConfigTests(unittest.TestCase):
         result.allocations["AAA"] = 0
         self.assertEqual(config.tickers, [" bbb ", "AAA", "bbb"])
         self.assertEqual(config.allocations, {"aaa": 1, "bbb": 3})
+
+    def test_validation_copies_strategy_parameters(self):
+        config = BacktestConfig(strategy_parameters={"short_window": 5})
+        result = config.validated()
+        result.strategy_parameters["short_window"] = 99
+        self.assertEqual(config.strategy_parameters, {"short_window": 5})
+
+    def test_partial_overrides_preserve_strategy_defaults(self):
+        from river_backtest.strategies.rsi_reversion import RSIReversion
+        from river_backtest.strategies.sma_crossover import SMACrossover
+
+        for cls, overrides in [
+            (SMACrossover, {"short_window": 3}),
+            (RSIReversion, {"period": 5}),
+        ]:
+            with self.subTest(strategy=cls.name):
+                defaults = cls.default_parameters.copy()
+                instance = build_strategy(
+                    BacktestConfig(strategy=cls.name, strategy_parameters=overrides)
+                )
+                for key, expected in {**defaults, **overrides}.items():
+                    self.assertEqual(getattr(instance, key), expected)
+                self.assertEqual(cls.default_parameters, defaults)
 
     def test_default_difference_is_explicit(self):
         self.assertEqual(GUI_CONFIG, replace(CONFIG, max_drawdown_cutoff_pct=None))
@@ -39,9 +62,10 @@ class ConfigTests(unittest.TestCase):
             {"kelly_p": 0.5, "kelly_b": float("inf")},
             {"start_date": "not-a-date"},
             {"strategy": "Unknown"},
-            {"short_window": 0},
-            {"long_window": -1},
-            {"strategy": "RSI Reversion", "rsi_period": 1},
+            {"strategy_parameters": {"short_window": 0}},
+            {"strategy_parameters": {"long_window": -1}},
+            {"strategy": "RSI Reversion", "strategy_parameters": {"period": 1}},
+            {"strategy_parameters": {"unknown": 1}},
             {"allocations": {"AAPL": float("nan"), "MSFT": 1, "NVDA": 1}},
         ]
         with patch("river_backtest.service.download_prices") as download:
@@ -68,9 +92,11 @@ class ConfigTests(unittest.TestCase):
                     strategy=strategy,
                     tickers=[" aaa "],
                     allocations={"aaa": 2},
-                    short_window=2,
-                    long_window=4,
-                    rsi_period=2,
+                    strategy_parameters=(
+                        {"short_window": 2, "long_window": 4}
+                        if strategy == "SMA Crossover"
+                        else {"period": 2}
+                    ),
                 )
                 with patch(
                     "river_backtest.service.download_prices", return_value={"AAA": data}

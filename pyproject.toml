@@ -8,10 +8,10 @@ version = "0.1.0"
 description = "Portfolio backtesting with SMA and RSI strategies and a desktop interface"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["pandas", "numpy", "matplotlib", "customtkinter", "yfinance"]
+dependencies = ["pandas", "numpy", "matplotlib", "customtkinter", "yfinance", "fastapi"]
 
 [project.optional-dependencies]
-dev = ["ruff"]
+dev = ["ruff", "httpx"]
 
 [project.scripts]
 river-backtest = "river_backtest.cli:main"

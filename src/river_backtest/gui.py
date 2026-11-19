@@ -12,6 +12,8 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from .config import GUI_CONFIG, BacktestConfig
 from .reporting import draw_backtest_chart
 from .service import build_strategy, run_backtest
+from .strategies.rsi_reversion import RSIReversion
+from .strategies.sma_crossover import SMACrossover
 
 
 class BacktestGUI(ctk.CTk):
@@ -183,6 +185,12 @@ class BacktestGUI(ctk.CTk):
 
     def _build_strategy_tab(self) -> None:
         tab = self.tab_strategy
+        sma_parameters = SMACrossover.default_parameters.copy()
+        rsi_parameters = RSIReversion.default_parameters.copy()
+        if self.defaults.strategy == SMACrossover.name:
+            sma_parameters.update(self.defaults.strategy_parameters)
+        elif self.defaults.strategy == RSIReversion.name:
+            rsi_parameters.update(self.defaults.strategy_parameters)
 
         ctk.CTkLabel(tab, text="Position Size", font=("Segoe UI", 12)).grid(
             row=0, column=0, sticky="w", pady=(10, 2), padx=10
@@ -209,13 +217,13 @@ class BacktestGUI(ctk.CTk):
             row=0, column=0, sticky="w", padx=10, pady=(10, 0)
         )
         self.sma_short = ctk.CTkEntry(self.sma_frame)
-        self.sma_short.insert(0, str(self.defaults.short_window))
+        self.sma_short.insert(0, str(sma_parameters["short_window"]))
         self.sma_short.grid(row=1, column=0, sticky="w", padx=10, pady=(0, 8))
         ctk.CTkLabel(self.sma_frame, text="SMA Long", font=("Segoe UI", 12)).grid(
             row=2, column=0, sticky="w", padx=10
         )
         self.sma_long = ctk.CTkEntry(self.sma_frame)
-        self.sma_long.insert(0, str(self.defaults.long_window))
+        self.sma_long.insert(0, str(sma_parameters["long_window"]))
         self.sma_long.grid(row=3, column=0, sticky="w", padx=10, pady=(0, 10))
 
         self.rsi_frame = ctk.CTkFrame(tab)
@@ -223,19 +231,19 @@ class BacktestGUI(ctk.CTk):
             row=0, column=0, sticky="w", padx=10, pady=(10, 0)
         )
         self.rsi_period = ctk.CTkEntry(self.rsi_frame)
-        self.rsi_period.insert(0, str(self.defaults.rsi_period))
+        self.rsi_period.insert(0, str(rsi_parameters["period"]))
         self.rsi_period.grid(row=1, column=0, sticky="w", padx=10, pady=(0, 8))
         ctk.CTkLabel(self.rsi_frame, text="RSI Oversold", font=("Segoe UI", 12)).grid(
             row=2, column=0, sticky="w", padx=10
         )
         self.rsi_oversold = ctk.CTkEntry(self.rsi_frame)
-        self.rsi_oversold.insert(0, str(self.defaults.rsi_oversold))
+        self.rsi_oversold.insert(0, str(rsi_parameters["oversold"]))
         self.rsi_oversold.grid(row=3, column=0, sticky="w", padx=10, pady=(0, 8))
         ctk.CTkLabel(self.rsi_frame, text="RSI Overbought", font=("Segoe UI", 12)).grid(
             row=4, column=0, sticky="w", padx=10
         )
         self.rsi_overbought = ctk.CTkEntry(self.rsi_frame)
-        self.rsi_overbought.insert(0, str(self.defaults.rsi_overbought))
+        self.rsi_overbought.insert(0, str(rsi_parameters["overbought"]))
         self.rsi_overbought.grid(row=5, column=0, sticky="w", padx=10, pady=(0, 10))
 
         self.sma_frame.grid(row=4, column=0, sticky="ew", padx=10)
@@ -379,9 +387,9 @@ class BacktestGUI(ctk.CTk):
             {"short_window": int(self.sma_short.get()), "long_window": int(self.sma_long.get())}
             if strategy == "SMA Crossover"
             else {
-                "rsi_period": int(self.rsi_period.get()),
-                "rsi_oversold": float(self.rsi_oversold.get()),
-                "rsi_overbought": float(self.rsi_overbought.get()),
+                "period": int(self.rsi_period.get()),
+                "oversold": float(self.rsi_oversold.get()),
+                "overbought": float(self.rsi_overbought.get()),
             }
         )
         config = replace(
@@ -404,7 +412,7 @@ class BacktestGUI(ctk.CTk):
             max_drawdown_cutoff_pct=self._optional_pct(
                 self.inputs["max_drawdown_cutoff_pct"].get()
             ),
-            **strategy_params,
+            strategy_parameters=strategy_params,
         ).validated()
         build_strategy(config)
         return config

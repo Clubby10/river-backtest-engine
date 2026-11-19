@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Any, ClassVar
 
 import pandas as pd
 
@@ -10,6 +11,10 @@ class BaseStrategy(ABC):
     depend only on prices available through that index. The engine may prepare
     different tickers concurrently, so implementations must not share mutable state.
     """
+
+    name: ClassVar[str]
+    description: ClassVar[str]
+    default_parameters: ClassVar[dict[str, Any]]
 
     @abstractmethod
     def generate_signal(self, data: pd.DataFrame, current_index: int) -> int:

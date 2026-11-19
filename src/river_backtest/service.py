@@ -10,11 +10,26 @@ from .strategies.sma_crossover import SMACrossover
 
 
 def build_strategy(config: BacktestConfig) -> BaseStrategy:
-    if config.strategy == "SMA Crossover":
-        return SMACrossover(config.short_window, config.long_window)
-    if config.strategy == "RSI Reversion":
-        return RSIReversion(config.rsi_period, config.rsi_oversold, config.rsi_overbought)
-    raise ValueError(f"Unknown strategy: {config.strategy}")
+    strategy_classes = {
+        SMACrossover.name: SMACrossover,
+        RSIReversion.name: RSIReversion,
+    }
+
+    if config.strategy not in strategy_classes:
+        raise ValueError(f"Unknown strategy: {config.strategy}")
+
+    strategy_class = strategy_classes[config.strategy]
+
+    unknown = config.strategy_parameters.keys() - strategy_class.default_parameters.keys()
+    if unknown:
+        raise ValueError(f"Unknown parameters for {config.strategy}: {', '.join(sorted(unknown))}")
+
+    parameters = {
+        **strategy_class.default_parameters,
+        **config.strategy_parameters,
+    }
+
+    return strategy_class(**parameters)
 
 
 def run_backtest(config: BacktestConfig, *, show_download_progress: bool = False) -> dict:
